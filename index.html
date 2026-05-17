@@ -288,16 +288,46 @@ const WIKI_TITLES = {
   "Utah Jazz": ["Lauri_Markkanen", "Collin_Sexton", "Jordan_Clarkson", "Walker_Kessler", "John_Collins_(basketball)"],
 };
 const photoCache = {};
-async function fetchWikiPhoto(playerName, wikiTitle) {
-  if (photoCache[playerName]) return photoCache[playerName];
-  try {
-    const r = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${wikiTitle}&prop=pageimages&format=json&pithumbsize=400&origin=*`);
-    const d = await r.json();
-    const page = Object.values(d.query.pages)[0];
-    const url = page?.thumbnail?.source || "";
-    photoCache[playerName] = url;
-    return url;
-  } catch(e) { return ""; }
+const photoResolvers = {};
+
+function loadWikiBatch(playerBatch) {
+  // playerBatch: [{playerName, wikiTitle}]
+  return new Promise((resolve) => {
+    const cbName = '_wikiCb' + Date.now() + Math.random().toString(36).slice(2);
+    const titles = playerBatch.map(p => encodeURIComponent(p.wikiTitle)).join('|');
+    window[cbName] = function(data) {
+      try {
+        const pages = data.query.pages;
+        Object.values(pages).forEach(page => {
+          const url = page.thumbnail ? page.thumbnail.source : '';
+          // Match page title back to player name
+          const titleNorm = (page.title||'').replace(/ /g,'_').toLowerCase();
+          const match = playerBatch.find(p => p.wikiTitle.toLowerCase() === titleNorm);
+          if (match) photoCache[match.playerName] = url;
+        });
+      } catch(e) {}
+      delete window[cbName];
+      if (s.parentNode) s.parentNode.removeChild(s);
+      resolve();
+    };
+    const s = document.createElement('script');
+    s.src = `https://en.wikipedia.org/w/api.php?action=query&titles=${titles}&prop=pageimages&format=json&pithumbsize=400&callback=${cbName}`;
+    s.onerror = () => { delete window[cbName]; resolve(); };
+    document.head.appendChild(s);
+  });
+}
+
+async function preloadAllPhotos() {
+  const all = TEAMS.flatMap(t =>
+    t.players.map((p, i) => ({playerName: p, wikiTitle: (WIKI_TITLES[t.name]||[])[i]||''}))
+  ).filter(x => x.wikiTitle);
+  const batches = [];
+  for (let i = 0; i < all.length; i += 10) batches.push(all.slice(i, i+10));
+  await Promise.all(batches.map(b => loadWikiBatch(b)));
+}
+
+function getPhoto(playerName) {
+  return photoCache[playerName] || '';
 }
 const TEAMS = [
   {name:"Atlanta Hawks",conf:"East",color:"#C1052A",abbr:"ATL",players:["Trae Young", "Dejounte Murray", "Bogdan Bogdanovic", "De'Andre Hunter", "Clint Capela"]},
@@ -534,7 +564,7 @@ function buildCard(pick, rarity, cardNum, photoUrl){
   return card;
 }
 
-async function revealCards(){
+function revealCards(){
   document.getElementById('packAnim').style.display='none';
   const revealed=document.getElementById('revealedCards');
   const row=document.getElementById('cardsRow');
@@ -542,29 +572,20 @@ async function revealCards(){
   const rarities=RARITIES[currentPackType];
   const pool=TEAMS.flatMap(t=>t.players.map((p,i)=>{
     const key=t.name+'-'+i;
-    return {player:p,team:t.name,abbr:t.abbr,playerIdx:i,logo:LOGOS[t.name]||'',color:t.color,wikiTitle:(WIKI_TITLES[t.name]||[])[i]||'',placed:!!placedCards[key]};
+    return {player:p,team:t.name,abbr:t.abbr,playerIdx:i,logo:LOGOS[t.name]||'',color:t.color,placed:!!placedCards[key]};
   })).filter(x=>!x.placed);
-  const allPool=pool.length>0?pool:TEAMS.flatMap(t=>t.players.map((p,i)=>{return {player:p,team:t.name,abbr:t.abbr,playerIdx:i,logo:LOGOS[t.name]||'',color:t.color,wikiTitle:(WIKI_TITLES[t.name]||[])[i]||'',placed:false};}) );
+  const allPool=pool.length>0?pool:TEAMS.flatMap(t=>t.players.map((p,i)=>{return {player:p,team:t.name,abbr:t.abbr,playerIdx:i,logo:LOGOS[t.name]||'',color:t.color,placed:false};}) );
   row.innerHTML=''; pendingCards=[];
 
-  const picks=[];
   for(let i=0;i<3;i++){
     const rarity=rarities[i];
     const pick=allPool[Math.floor(Math.random()*allPool.length)];
     const cardNum=nextCardNum();
     pendingCards.push({...pick,rarity,cardNum});
-    picks.push({pick,rarity,cardNum});
-  }
-
-  const photos=await Promise.all(picks.map(({pick})=>
-    pick.wikiTitle?fetchWikiPhoto(pick.player,pick.wikiTitle):Promise.resolve('')
-  ));
-
-  picks.forEach(({pick,rarity,cardNum},i)=>{
-    const card=buildCard(pick,rarity,cardNum,photos[i]);
+    const card=buildCard(pick,rarity,cardNum,getPhoto(pick.player));
     row.appendChild(card);
     setTimeout(()=>card.classList.add('flipped'),200+i*320);
-  });
+  }
   setTimeout(()=>revealed.classList.add('active'),80);
 }
 
@@ -595,6 +616,7 @@ function closeOverlay(){document.getElementById('packOverlay').classList.remove(
 
 renderPages();
 renderInventory();
+preloadAllPhotos();
 </script>
 </body>
 </html>

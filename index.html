@@ -287,47 +287,12 @@ const WIKI_TITLES = {
   "San Antonio Spurs": ["Victor_Wembanyama", "Devin_Vassell", "Keldon_Johnson", "Tre_Jones_(basketball)", "Jeremy_Sochan"],
   "Utah Jazz": ["Lauri_Markkanen", "Collin_Sexton", "Jordan_Clarkson", "Walker_Kessler", "John_Collins_(basketball)"],
 };
-const photoCache = {};
-const photoResolvers = {};
-
-function loadWikiBatch(playerBatch) {
-  // playerBatch: [{playerName, wikiTitle}]
-  return new Promise((resolve) => {
-    const cbName = '_wikiCb' + Date.now() + Math.random().toString(36).slice(2);
-    const titles = playerBatch.map(p => encodeURIComponent(p.wikiTitle)).join('|');
-    window[cbName] = function(data) {
-      try {
-        const pages = data.query.pages;
-        Object.values(pages).forEach(page => {
-          const url = page.thumbnail ? page.thumbnail.source : '';
-          // Match page title back to player name
-          const titleNorm = (page.title||'').replace(/ /g,'_').toLowerCase();
-          const match = playerBatch.find(p => p.wikiTitle.toLowerCase() === titleNorm);
-          if (match) photoCache[match.playerName] = url;
-        });
-      } catch(e) {}
-      delete window[cbName];
-      if (s.parentNode) s.parentNode.removeChild(s);
-      resolve();
-    };
-    const s = document.createElement('script');
-    s.src = `https://en.wikipedia.org/w/api.php?action=query&titles=${titles}&prop=pageimages&format=json&pithumbsize=400&callback=${cbName}`;
-    s.onerror = () => { delete window[cbName]; resolve(); };
-    document.head.appendChild(s);
-  });
-}
-
-async function preloadAllPhotos() {
-  const all = TEAMS.flatMap(t =>
-    t.players.map((p, i) => ({playerName: p, wikiTitle: (WIKI_TITLES[t.name]||[])[i]||''}))
-  ).filter(x => x.wikiTitle);
-  const batches = [];
-  for (let i = 0; i < all.length; i += 10) batches.push(all.slice(i, i+10));
-  await Promise.all(batches.map(b => loadWikiBatch(b)));
-}
+// LOCAL_PHOTOS se llena al correr download_photos.py
+// Si está vacío, las cartas muestran el logo del equipo
+const LOCAL_PHOTOS = {};
 
 function getPhoto(playerName) {
-  return photoCache[playerName] || '';
+  return LOCAL_PHOTOS[playerName] || '';
 }
 const TEAMS = [
   {name:"Atlanta Hawks",conf:"East",color:"#C1052A",abbr:"ATL",players:["Trae Young", "Dejounte Murray", "Bogdan Bogdanovic", "De'Andre Hunter", "Clint Capela"]},
@@ -616,7 +581,6 @@ function closeOverlay(){document.getElementById('packOverlay').classList.remove(
 
 renderPages();
 renderInventory();
-preloadAllPhotos();
 </script>
 </body>
 </html>

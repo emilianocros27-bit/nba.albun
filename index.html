@@ -123,9 +123,11 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(0,0,0,0.88);
 .cards-row{display:flex;gap:16px;justify-content:center;}
 .rev-card{width:130px;height:178px;border-radius:12px;border:3px solid #c8a84b;background:#1a0800;display:flex;flex-direction:column;overflow:hidden;transform:rotateY(180deg) scale(0.8);opacity:0;transition:all 0.55s;position:relative;}
 .rev-card.flipped{transform:rotateY(0deg) scale(1);opacity:1;}
-.rev-card-top{flex:1;background:linear-gradient(135deg,#2a1200,#160800);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;}
-.rev-card-bignum{font-family:'Bebas Neue';font-size:44px;color:rgba(200,168,75,0.35);letter-spacing:2px;line-height:1;}
-.rev-card-logo{width:44px;height:44px;object-fit:contain;opacity:0.5;}
+.rev-card-top{flex:1;background:linear-gradient(135deg,#2a1200,#160800);position:relative;overflow:hidden;}
+.rev-card-photo{width:100%;height:100%;object-fit:cover;object-position:top center;display:block;}
+.rev-card-photo-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+.rev-card-bignum{position:absolute;top:2px;left:5px;font-family:'Bebas Neue';font-size:22px;color:rgba(200,168,75,0.9);letter-spacing:1px;line-height:1;text-shadow:0 1px 4px rgba(0,0,0,0.8);}
+.rev-card-logo{position:absolute;bottom:4px;right:4px;width:28px;height:28px;object-fit:contain;opacity:0.85;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.7));}
 .rev-card-bottom{padding:7px;background:#110600;border-top:1px solid rgba(200,168,75,0.3);}
 .rev-card-name{font-size:12px;font-weight:900;color:#fff;letter-spacing:0.5px;}
 .rev-card-team{font-size:10px;color:#c8a84b;}
@@ -509,9 +511,9 @@ function revealCards(){
   const rarities=RARITIES[currentPackType];
   const pool=TEAMS.flatMap(t=>t.players.map((p,i)=>{
     const key=t.name+'-'+i;
-    return {player:p,team:t.name,abbr:t.abbr,playerIdx:i,logo:LOGOS[t.name]||'',placed:!!placedCards[key]};
+    return {player:p,team:t.name,abbr:t.abbr,playerIdx:i,logo:LOGOS[t.name]||'',photo:(PLAYER_PHOTOS[t.name]||[])[i]||'',placed:!!placedCards[key]};
   })).filter(x=>!x.placed);
-  const allPool=pool.length>0?pool:TEAMS.flatMap(t=>t.players.map((p,i)=>{return {player:p,team:t.name,abbr:t.abbr,playerIdx:i,logo:LOGOS[t.name]||'',placed:false};}) );
+  const allPool=pool.length>0?pool:TEAMS.flatMap(t=>t.players.map((p,i)=>{return {player:p,team:t.name,abbr:t.abbr,playerIdx:i,logo:LOGOS[t.name]||'',photo:(PLAYER_PHOTOS[t.name]||[])[i]||'',placed:false};}) );
   row.innerHTML=''; pendingCards=[];
   for(let i=0;i<3;i++){
     const rarity=rarities[i];
@@ -523,6 +525,7 @@ function revealCards(){
     card.innerHTML=`
       <div class="rev-card-rarity rarity-${rarity}">${RARITY_LABELS[rarity]}</div>
       <div class="rev-card-top">
+        ${pick.photo?`<img class="rev-card-photo" src="${pick.photo}" alt="${pick.player}">`:`<div class="rev-card-photo-placeholder">${pick.logo?`<img style="width:44px;height:44px;object-fit:contain;opacity:0.5" src="${pick.logo}" alt="">`:'</div>'}`}
         <div class="rev-card-bignum">#${cardNum}</div>
         ${pick.logo?`<img class="rev-card-logo" src="${pick.logo}" alt="">`:''}
       </div>
